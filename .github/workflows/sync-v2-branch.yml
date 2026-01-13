@@ -1,0 +1,51 @@
+name: Sync V2 Branch from Upstream
+
+on:
+  workflow_dispatch:  # Allow manual trigger
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight
+
+jobs:
+  sync-v2-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/oras-project/oras-go.git || true
+          git fetch upstream --tags
+      
+      - name: Sync v2 branch
+        run: |
+          # Check if v2 branch exists locally
+          if git show-ref --verify --quiet refs/heads/v2; then
+            echo "V2 branch exists, updating..."
+            git checkout v2
+            git reset --hard upstream/v2
+          else
+            echo "Creating v2 branch from upstream..."
+            git checkout -b v2 upstream/v2
+          fi
+      
+      - name: Push v2 branch
+        run: |
+          git push -f origin v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Summary
+        run: |
+          echo "✅ V2 branch synced successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Latest commit on v2:" >> $GITHUB_STEP_SUMMARY
+          git log v2 --oneline -1 >> $GITHUB_STEP_SUMMARY
